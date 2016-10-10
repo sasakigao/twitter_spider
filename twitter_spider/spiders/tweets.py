@@ -66,6 +66,7 @@ class TweetSpider(scrapy.Spider):
 			yield item
 
 		for tag in self.extract_tags(first_page, response.request.url):
+			# Url passed to request receives UTF-8 params.
 			next_tag_page = self.base_tag_url % urllib.quote_plus(tag.encode('utf-8'))
 			yield scrapy.Request(next_tag_page, 
 				callback = self.hashtag_parse)
@@ -135,6 +136,8 @@ class TweetSpider(scrapy.Spider):
 
 	def user_stream_parse(self, response):
 		json_stream = json.loads(response.body)
+		# json_stream['items_html'] is unicode.
+		# After encoded into utf8, tags remain unicode.
 		json_stream_html = json_stream['items_html'].encode('utf-8').replace('\n', '')
 
 		for item in self.item_parse(json_stream_html):
@@ -178,6 +181,7 @@ class TweetSpider(scrapy.Spider):
 
 	def extract_tags(self, page_src, url):
 		try:
+			# Page source keeps raw, so the coding tags look like u'\u4e2d\u56fd', already escaped.
 			tags = Selector(text = page_src).xpath('//a[@class="twitter-hashtag pretty-link js-nav"]/b/text()').extract()
 			return tags
 		except Exception as e:
