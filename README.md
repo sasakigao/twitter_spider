@@ -9,3 +9,4 @@ Twitter returns a `utf-8` page for the first page of a stream, and `unicode` pag
 later on.
 I do nothing on the first page, but load the second one into json objects and extract the `items_html`
 , as well as the html body, encode it into `utf-8` and remove `\n`, make the stream parsable.
+After extracting **tags** and **contents**, I respectively encoded them into `utf-8`.

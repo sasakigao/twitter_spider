@@ -27,7 +27,7 @@ class TweetSpider(scrapy.Spider):
 		'RETRY_TIMES' : 4}
 
 	login_url = 'https://twitter.com/login'
-	hashtags = ['ACM', ]
+	hashtags = ['ChicagoMarathon', 'FelizDomingo', 'Verstappen']
 	
 # Start from login and have cookie kept
 	# def start_requests(self):
@@ -62,21 +62,22 @@ class TweetSpider(scrapy.Spider):
 # Applied to parse the entry urls, eg., hashtag pages.
 	def hashtag_parse(self, response):
 		first_page = response.body.replace('\n', '')
-		for item in self.item_parse(first_page, 'hash'):
+		for item in self.item_parse(first_page):
 			yield item
 
 		for tag in self.extract_tags(first_page, response.request.url):
-			next_tag_page = self.base_tag_url % urllib.quote_plus(tag)
+			next_tag_page = self.base_tag_url % urllib.quote_plus(tag.encode('utf-8'))
 			yield scrapy.Request(next_tag_page, 
 				callback = self.hashtag_parse)
 
+# username allows only letter, number and _.
 		for account in self.extract_accounts_inhash(first_page, response.request.url):
 			next_user_page = self.base_user_url % urllib.quote_plus(account)
 			yield scrapy.Request(next_user_page, 
 				callback = self.user_parse)
 
 		stream_foot = re.search(r'data-min-position="([^"]+?)"', first_page).group(1)
-		tag_now = urlparse.urlparse(response.request.url).path.split('/')[-1]
+		tag_now = urlparse.urlparse(response.request.url).path.split('/')[-1].encode('utf-8')
 		next_json_page = self.base_tag_json_url % (urllib.quote_plus(tag_now), urllib.quote_plus(stream_foot))
 		if stream_foot:
 			yield scrapy.Request(next_json_page, 
@@ -85,11 +86,11 @@ class TweetSpider(scrapy.Spider):
 
 	def user_parse(self, response):
 		first_page = response.body.replace('\n', '')
-		for item in self.item_parse(first_page, 'user'):
+		for item in self.item_parse(first_page):
 			yield item
 
 		for tag in self.extract_tags(first_page, response.request.url):
-			next_tag_page = self.base_tag_url % urllib.quote_plus(tag)
+			next_tag_page = self.base_tag_url % urllib.quote_plus(tag.encode('utf-8'))
 			yield scrapy.Request(next_tag_page, 
 				callback = self.hashtag_parse)
 
@@ -99,7 +100,7 @@ class TweetSpider(scrapy.Spider):
 				callback = self.user_parse)
 
 		stream_foot = re.search(r'data-min-position="([^"]+?)"', first_page).group(1)
-		user_now = urlparse.urlparse(response.request.url).path.split('/')[-1]
+		user_now = urlparse.urlparse(response.request.url).path.split('/')[-1].encode('utf-8')
 		next_json_page = self.base_user_json_url % (urllib.quote_plus(user_now), urllib.quote_plus(stream_foot))
 		if stream_foot:
 			yield scrapy.Request(next_json_page, 
@@ -111,11 +112,11 @@ class TweetSpider(scrapy.Spider):
 		json_stream = json.loads(response.body)
 		json_stream_html = json_stream['items_html'].encode('utf-8').replace('\n', '')
 
-		for item in self.item_parse(json_stream_html, 'hashs'):
+		for item in self.item_parse(json_stream_html):
 			yield item
 
 		for tag in self.extract_tags(json_stream_html, response.request.url):
-			next_tag_page = self.base_tag_url % urllib.quote_plus(tag)
+			next_tag_page = self.base_tag_url % urllib.quote_plus(tag.encode('utf-8'))
 			yield scrapy.Request(next_tag_page, 
 				callback = self.hashtag_parse)
 
@@ -126,7 +127,7 @@ class TweetSpider(scrapy.Spider):
 
 		if json_stream['has_more_items']:
 			stream_foot = json_stream['min_position']
-			tag_now = urlparse.parse_qs(urlparse.urlparse(response.request.url).query)['q']
+			tag_now = urlparse.parse_qs(urlparse.urlparse(response.request.url).query)['q'].encode('utf-8')
 			next_json_page = self.base_tag_json_url % (urllib.quote_plus(tag_now), urllib.quote_plus(stream_foot))
 			yield scrapy.Request(next_json_page, 
 				callback = self.hashtag_stream_parse)
@@ -136,11 +137,11 @@ class TweetSpider(scrapy.Spider):
 		json_stream = json.loads(response.body)
 		json_stream_html = json_stream['items_html'].encode('utf-8').replace('\n', '')
 
-		for item in self.item_parse(json_stream_html, 'users'):
+		for item in self.item_parse(json_stream_html):
 			yield item
 
 		for tag in self.extract_tags(json_stream_html, response.request.url):
-			next_tag_page = self.base_tag_url % urllib.quote_plus(tag)
+			next_tag_page = self.base_tag_url % urllib.quote_plus(tag.encode('utf-8'))
 			yield scrapy.Request(next_tag_page, 
 				callback = self.hashtag_parse)
 
@@ -151,7 +152,7 @@ class TweetSpider(scrapy.Spider):
 
 		if json_stream['has_more_items']:
 			stream_foot = json_stream['min_position']
-			user_now = urlparse.urlparse(response.request.url).path.split('/')[4]
+			user_now = urlparse.urlparse(response.request.url).path.split('/')[4].encode('utf-8')
 			next_json_page = self.base_user_json_url % (urllib.quote_plus(user_now), urllib.quote_plus(stream_foot))
 			yield scrapy.Request(next_json_page, 
 				callback = self.user_stream_parse)
@@ -184,18 +185,18 @@ class TweetSpider(scrapy.Spider):
 
 
 # Load the fields into items
-	def item_parse(self, page_src, source):
+	def item_parse(self, page_src):
 		for tweet_sel in Selector(text = page_src).xpath('//li[@class="js-stream-item stream-item stream-item"]/div'):
 			try:
 					item = TweetItem()
 					item['user'] = tweet_sel.xpath('.//span[@class="username js-action-profile-name"]/b/text()').extract_first()
 					item['content'] = "".join(tweet_sel.xpath('.//div[@class="js-tweet-text-container"]/p//text()').extract())
-					item['quote_content'] = ("".join(tweet_sel.xpath('.//div[@class="QuoteTweet-text tweet-text u-dir"]//text()').extract()))
+					# Quoted tweets displayed in two forms. One retweet without comments, one got.
+					# item['quote_content'] = ("".join(tweet_sel.xpath('.//div[@class="QuoteTweet-text tweet-text u-dir"]//text()').extract()))
 					item['timestamp'] = tweet_sel.xpath('.//a[@class="tweet-timestamp js-permalink js-nav js-tooltip"]/span[1]/@data-time-ms').extract_first()
-					item['location'] = tweet_sel.xpath('./span[@class="Tweet-geo u-floatRight js-tooltip"]/a/span[2]/text()').extract_first(default = '')
-					item['retweets'] = tweet_sel.xpath('.//div[@class="ProfileTweet-action ProfileTweet-action--retweet js-toggleState js-toggleRt"]/button[1]/div[2]/span/span/text()').extract_first(default = 0)
-					item['likes'] = tweet_sel.xpath('.//div[@class="ProfileTweet-action ProfileTweet-action--favorite js-toggleState"]//span[@class="ProfileTweet-actionCountForPresentation"]/text()').extract_first(default = 0)
-					item['source'] = source
+					item['location'] = tweet_sel.xpath('.//span[@class="Tweet-geo u-floatRight js-tooltip"]/a/span[2]/text()').extract_first(default = '')
+					item['retweets'] = tweet_sel.xpath('.//div[@class="ProfileTweet-action ProfileTweet-action--retweet js-toggleState js-toggleRt"]/button[1]/div[2]/span/span/text()').extract_first(default = '0')
+					item['likes'] = tweet_sel.xpath('.//div[@class="ProfileTweet-action ProfileTweet-action--favorite js-toggleState"]//span[@class="ProfileTweet-actionCountForPresentation"]/text()').extract_first(default = '0')
 					yield item
 			except Exception as e:
 				logger.error('Meet some trouble in method [item_parse] while parsing ---- %s', tweet_sel.xpath('.').extract_first())
